@@ -2788,49 +2788,7 @@ ARAHAN CRITICAL:
             }
         }
 
- function saveTopic() {
-            const title = document.getElementById('topic-title').value.trim();
-            const difficulty = document.getElementById('topic-difficulty').value;
-            const jawiText = document.getElementById('topic-jawi-text').value.trim();
-            const rumiText = document.getElementById('topic-rumi-text').value.trim();
-
-            if (!title || !jawiText) {
-                showToast("Sila lengkapkan Tajuk dan Kandungan Teks Jawi!", "error");
-                return;
-            }
-
-            const jWords = jawiText.split(/\s+/).filter(w => w.length > 0);
-            const rWords = rumiText.split(/\s+/).filter(w => w.length > 0);
-             if (jWords.length !== rWords.length) {
-                showToast(`Amaran: Jumlah perkataan tidak sepadan! (Jawi: ${jWords.length}, Rumi: ${rWords.length}). Padanan butang audio latihan ini akan lari dan tidak tepat. Sila semak semula!`, "error");
-            }
-
-            let topics = JSON.parse(AppStorage.getItem('e_smart_topics')) || [];
-            const newTopic = {
-                id: Date.now().toString(),
-                title, difficulty, jawiText, rumiText
-            };
-
-            topics.push(newTopic);
-            AppStorage.setItem('e_smart_topics', JSON.stringify(topics));
-
-            renderTopicsInLibrary();
-            populateAnalysisTopics();
-            loadStudentTopicsByLevel();
-            
-            document.getElementById('topic-title').value = "";
-            document.getElementById('topic-jawi-text').value = "";
-            document.getElementById('topic-rumi-text').value = "";
-
-              showToast("Menyimpan topik pembelajaran ke Google Sheet...", "warning");
-
-            // Hantar data ke GAS menggunakan nama tab rujukan 'Perpustakaan_Jawi' dengan aksi INSERT
-            syncToGoogleSheets('Perpustakaan_Jawi', newTopic, 'INSERT');
-            AppStorage.setItem('e_smart_topics_exists_on_sheet', 'true');
-            showToast("Bahan topik baru berjaya disimpan dan disegerakkan di latar belakang!", "success");
-        }
-
-      function saveTopic() {
+function saveTopic() {
             const title = document.getElementById('topic-title').value.trim();
             const difficulty = document.getElementById('topic-difficulty').value;
             const jawiText = document.getElementById('topic-jawi-text').value.trim();
@@ -2867,12 +2825,68 @@ ARAHAN CRITICAL:
             document.getElementById('topic-jawi-text').value = "";
             document.getElementById('topic-rumi-text').value = "";
 
-              showToast("Menyimpan topik pembelajaran ke Google Sheet...", "warning");
+            showToast("Menyimpan topik pembelajaran ke Google Sheet...", "warning");
 
             // Hantar data ke GAS menggunakan nama tab rujukan 'Perpustakaan_Jawi' dengan aksi INSERT
             syncToGoogleSheets('Perpustakaan_Jawi', newTopic, 'INSERT');
             AppStorage.setItem('e_smart_topics_exists_on_sheet', 'true');
             showToast("Bahan topik baru berjaya disimpan dan disegerakkan di latar belakang!", "success");
+        }
+
+        function updateTopic(id) {
+            const title = document.getElementById('topic-title').value.trim();
+            const difficulty = document.getElementById('topic-difficulty').value;
+            const jawiText = document.getElementById('topic-jawi-text').value.trim();
+            const rumiText = document.getElementById('topic-rumi-text').value.trim();
+
+            if (!title || !jawiText) {
+                showToast("Sila lengkapkan Tajuk dan Kandungan Teks Jawi!", "error");
+                return;
+            }
+
+            const jWords = jawiText.split(/\s+/).filter(w => w.length > 0);
+            const rWords = rumiText.split(/\s+/).filter(w => w.length > 0);
+            if (jWords.length !== rWords.length) {
+                showToast(`Amaran: Jumlah perkataan tidak sepadan! (Jawi: ${jWords.length}, Rumi: ${rWords.length}). Padanan butang audio latihan ini akan lari dan tidak tepat. Sila semak semula!`, "error");
+            }
+
+            let topics = JSON.parse(AppStorage.getItem('e_smart_topics')) || [];
+            const index = topics.findIndex(t => String(t.id) === String(id));
+            
+            if (index !== -1) {
+                topics[index] = {
+                    id: id,
+                    title: title,
+                    difficulty: difficulty,
+                    jawiText: jawiText,
+                    rumiText: rumiText
+                };
+                
+                AppStorage.setItem('e_smart_topics', JSON.stringify(topics));
+                AppStorage.setItem('shield_topik', Date.now().toString());
+
+                renderTopicsInLibrary();
+                populateAnalysisTopics();
+                loadStudentTopicsByLevel();
+
+                // Kosongkan form dan kembalikan butang ke asal
+                document.getElementById('topic-title').value = "";
+                document.getElementById('topic-jawi-text').value = "";
+                document.getElementById('topic-rumi-text').value = "";
+                
+                const saveBtn = document.getElementById('btn-save-topic');
+                if (saveBtn) {
+                    saveBtn.innerHTML = `<i class="fa-solid fa-plus-circle"></i> Tambah ke Topik Latihan`;
+                    saveBtn.setAttribute('onclick', 'saveTopic()');
+                }
+                editingTopicId = null;
+
+                showToast("Menyimpan kemaskini topik ke awan...", "warning");
+                syncToGoogleSheets('Perpustakaan_Jawi', topics[index], 'UPDATE');
+                showToast("Topik berjaya dikemaskini dan disegerakkan!", "success");
+            } else {
+                showToast("Ralat: Topik tidak dijumpai!", "error");
+            }
         }
 
         function deleteTopic(id) {
