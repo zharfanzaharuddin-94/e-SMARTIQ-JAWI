@@ -420,9 +420,15 @@
 
                            <!-- Senarai Murid Berdaftar -->
                             <div class="lg:col-span-2 space-y-4">
-                                <div class="flex items-center justify-between">
+                                <div class="flex items-center justify-between flex-wrap gap-2">
                                     <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wider text-emerald-600">Senarai Murid Berdaftar</h3>
-                                    <span id="student-count-badge" class="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-3 py-1 rounded-full">0 Murid</span>
+                                    <div class="flex items-center gap-2">
+                                        <label class="cursor-pointer bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-1.5 px-3 rounded-xl text-xs transition-all border border-indigo-200 flex items-center gap-1.5 shadow-sm">
+                                            <i class="fa-solid fa-file-csv"></i> Import CSV
+                                            <input type="file" id="csv-upload-input" accept=".csv" class="hidden" onchange="processCSVUpload(this)">
+                                        </label>
+                                        <span id="student-count-badge" class="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-3 py-1 rounded-full">0 Murid</span>
+                                    </div>
                                 </div>
                                 
                                 <div class="overflow-x-auto overflow-y-auto max-h-[520px] rounded-2xl border border-slate-100">
@@ -669,16 +675,17 @@
                                     </div>
                                 </div>
 
-                                <div id="digital-report-card" class="hidden space-y-6 bg-white p-6 rounded-3xl border border-slate-200 relative">
-                                    <div class="absolute top-6 right-6 flex items-center gap-2">
-                                        <button onclick="printStudentReport()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-sm">
+                                <div id="digital-report-card" class="hidden space-y-4 bg-white p-6 rounded-3xl border border-slate-200 relative">
+                                    
+                                    <!-- KEMAS KINI: Butang diletakkan di ruang atas tersendiri (Bukan lagi Absolute) 
+                                         supaya mustahil bertindih dengan Bintang/Lencana -->
+                                    <div class="w-full flex justify-end">
+                                        <button onclick="printStudentReport()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition-all flex items-center gap-2 shadow-sm">
                                             <i class="fa-solid fa-print"></i> Cetak Laporan Rasmi (Portrait)
                                         </button>
                                     </div>
 
-
-
-                                    <div id="printable-student-report" class="space-y-6">
+                                    <div id="printable-student-report" class="space-y-6 border-t border-slate-50 pt-2">
                                         <div class="flex flex-col sm:flex-row gap-6 items-center border-b border-slate-100 pb-6">
                                             <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-emerald-500 bg-slate-50 relative shrink-0">
                                                 <img id="rc-student-avatar" src="" class="w-full h-full object-cover">
@@ -860,8 +867,8 @@
                             <div class="xl:col-span-2">
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Pilihan Suara</label>
                                 <select id="audio-voice-type" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none">
-                                    <option value="standard">Suara Standard</option>
-                                    <option value="premium">Suara Premium</option>
+                                    <option value="standard">Suara Standard (Fokus BM Baku)</option>
+                                    <option value="premium">Suara Premium (Fokus Makhraj)</option>
                                 </select>
                             </div>
 
@@ -1885,10 +1892,36 @@ function populateClassFilters() {
             tbody.innerHTML = "";
             badge.innerText = `${students.length} Murid`;
 
-            students.forEach((s, idx) => {
+            // 1. Simpan index memori asal (Supaya butang Sunting/Padam tak salah pilih murid)
+            let studentsWithIndex = students.map((s, index) => {
+                return { ...s, originalIndex: index };
+            });
+
+            // 2. Susun senarai mengikut nombor Kelas (1 hingga 6) 
+            studentsWithIndex.sort((a, b) => {
+                let classA = (a.class || "").toString().trim();
+                let classB = (b.class || "").toString().trim();
+                
+                // Gunakan localeCompare untuk sistem membaca nombor dalam kelas dengan tepat
+                // Contoh: "1 Bijak" akan berada di atas "2 Bijak"
+                let classCmp = classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+                
+                // Jika mereka di kelas yang sama, susun mengikut abjad NAMA pula
+                if (classCmp === 0) {
+                    let nameA = (a.name || "").toString().trim();
+                    let nameB = (b.name || "").toString().trim();
+                    return nameA.localeCompare(nameB);
+                }
+                return classCmp;
+            });
+
+            // 3. Paparkan jadual yang telah disusun
+            studentsWithIndex.forEach((s) => {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-all cursor-pointer";
-                tr.onclick = () => selectStudentForEdit(idx);
+                
+                // PENTING: Gunakan originalIndex supaya sistem Sunting & Padam berfungsi dengan tepat
+                tr.onclick = () => selectStudentForEdit(s.originalIndex);
                 
                 tr.innerHTML = `
                     <td class="p-4">
@@ -2216,12 +2249,10 @@ function deleteAudioLog(logId, studentIc) {
 
         function renderSpecificWeakness(logId, prefix) {
             const logs = JSON.parse(AppStorage.getItem('e_smart_logs')) || [];
-            // PEMBETULAN MUTLAK 1: Paksa carian memadankan ID Log
             const log = logs.find(l => String(l.id) === String(logId));
             if (!log) return;
             
             const topics = JSON.parse(AppStorage.getItem('e_smart_topics')) || [];
-            // PEMBETULAN MUTLAK 2: Paksa padanan ID Topik supaya tidak berlaku ralat Type Mismatch
             const t = topics.find(tp => String(tp.id) === String(log.topicId));
             const level = t ? parseInt(t.difficulty) || 3 : 3;
 
@@ -2246,7 +2277,6 @@ function deleteAudioLog(logId, studentIc) {
             let weaknessHTML = "";
             let focusSet = new Set();
             let added = 0;
-            // Menyokong penuh Tahap 1 hingga 6
             let groupedWeaknesses = {
                 1: { sangkut: [], tinggal: [] },
                 2: { sangkut: [], tinggal: [] },
@@ -2323,6 +2353,26 @@ function deleteAudioLog(logId, studentIc) {
             
             if(focusText) {
                 focusText.innerHTML = `${focusContent}<div class="text-[10px] text-slate-400 mt-2 border-t pt-2 border-slate-200">Menunjukkan kesalahan khusus bagi sesi <b>${log.date}</b> sahaja. <button onclick="${returnFunc}" class="text-emerald-600 underline font-bold cursor-pointer hover:text-emerald-800 ml-1">Tunjukkan Keseluruhan</button></div>`;
+            }
+
+           // =================================================================
+            // KOD BAHARU: INTERAKSI GRAF (WARNA BIRU GELAP TEMA GURU)
+            // =================================================================
+            const activeChart = prefix === 'smrc' ? studentChartInstance : chartInstance;
+            if (activeChart && activeChart.data.customIds) {
+                const ids = activeChart.data.customIds;
+                const found = ids.includes(String(logId));
+                
+                if (found) {
+                    // Nyalakan Biru Gelap pada tiang yang ditekan
+                    activeChart.data.datasets[0].backgroundColor = ids.map(id => 
+                        id === String(logId) ? 'rgba(30, 58, 138, 0.9)' : 'rgba(16, 185, 129, 0.2)'
+                    );
+                } else {
+                    // PAKSA RESET MUTLAK: Hantar arahan warna Hijau ke atas setiap tiang satu-persatu (Kalis Bug Chart.js)
+                    activeChart.data.datasets[0].backgroundColor = ids.map(() => 'rgba(16, 185, 129, 0.8)');
+                }
+                activeChart.update();
             }
         }
 
@@ -3576,7 +3626,6 @@ function displayActiveLatihan() {
                 tertinggal = isExcellent ? 0 : Math.floor(Math.random() * 2);
             }
 
-            // Janakan weaknessTags terselaras secara dinamik berdasarkan simulasi/penilaian AI sebutan
             let sessionWeaknessTags = [];
             const rumiWordsArr = topic.rumiText.split(/\s+/).map(w => w.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim()).filter(w => w.length > 0);
             
@@ -3606,13 +3655,11 @@ function displayActiveLatihan() {
             const resultCard = document.getElementById('exercise-result-card');
             resultCard.classList.remove('hidden');
 
-            // --- AI MUTE INTEGRATED ---
             if (!isTeacherMarkingMode) {
                 document.getElementById('reading-stats-grid').classList.add('hidden');
                 document.getElementById('reading-grade').classList.add('hidden');
                 document.getElementById('exercise-feedback-text').classList.add('hidden');
                 document.getElementById('exercise-suggestions-text').classList.add('hidden');
-                
                 document.getElementById('ai-mute-pending-message').classList.remove('hidden');
             } else {
                 document.getElementById('ai-mute-pending-message').classList.add('hidden');
@@ -3626,13 +3673,12 @@ function displayActiveLatihan() {
             document.getElementById('reading-stuck-count').innerText = stuck;
             document.getElementById('reading-tertinggal-count').innerText = tertinggal;
 
-             const feedback = document.getElementById('exercise-feedback-text');
+            const feedback = document.getElementById('exercise-feedback-text');
             const suggestionsText = document.getElementById('exercise-suggestions-text');
 
             const stat = evaluateReadingStatus(score, parseFloat(jeda), stuck, tertinggal, parseInt(level));
             feedback.innerText = stat.aiComment;
 
-            // Membina analisis kelemahan visual terselaras (Alerts + Bullets) mengikut format laporan prestasi
             let suggestionsHTML = "";
             let focusSet = new Set();
             let groupedWeaknesses = {
@@ -3711,22 +3757,22 @@ function displayActiveLatihan() {
             // FASA 4 BAHARU: Tukar audioBlob kepada String Base64 untuk disimpan secara kekal ke Google Sheets
             const reader = new FileReader();
             reader.onloadend = function() {
-                const base64Audio = reader.result; // data:audio/wav;base64,...
+                const base64Audio = reader.result; 
 
                const newLog = {
-                    id: "LOG_" + Date.now().toString(),
+                    id: Date.now().toString(), // KEMAS KINI: ID bersih berbentuk nombor
                     studentIc: currentActiveUser.ic,
                     topicId: topicId,
                     score: 0, 
                     manualScore: null, 
                     jeda: parseFloat(jeda),
-                    stuckCount: 0, // KOSONGKAN: Dilarang biarkan AI letak bilangan sangkut
-                    tertinggal: 0, // KOSONGKAN: Dilarang biarkan AI letak bilangan tertinggal
+                    stuckCount: 0, 
+                    tertinggal: 0, 
                     date: new Date().toISOString().split('T')[0],
                     audioUrl: base64Audio, 
-                    weaknessTags: [], // KOSONGKAN: Buang segala tag kelemahan rekaan AI
-                    isReviewed: false, // Aplikasi akan papar "BELUM DISEMAK" secara rasmi
-                    statusSemakan: "DISEMAK" // TAPI Google Sheet akan dipaksa tulis "DISEMAK" (Helah Bijak!)
+                    weaknessTags: [], 
+                    isReviewed: false, 
+                    statusSemakan: "DISEMAK" 
                 };
 
                 const logs = JSON.parse(AppStorage.getItem('e_smart_logs')) || [];
@@ -3744,13 +3790,10 @@ function displayActiveLatihan() {
 
           function renderPersonalStudentReport() {
             const student = currentActiveUser;
-            
-            // JAMINAN KESELAMATAN: Hentikan pemprosesan jika tiada murid yang log masuk (cegah ralat null 'ic')
             if (!student) return;
             
             const logs = JSON.parse(AppStorage.getItem('e_smart_logs')) || [];
             const topics = JSON.parse(AppStorage.getItem('e_smart_topics')) || [];
-            
             const selectedMonth = document.getElementById('smrc-month-select')?.value || "All";
 
             const personalLogs = logs.filter(l => String(l.studentIc).trim() === String(student.ic).trim()).map(l => {
@@ -3758,7 +3801,7 @@ function displayActiveLatihan() {
                 return { ...l, level: t ? parseInt(t.difficulty) : 3, topicTitle: t ? t.title : "Topik" };
             });
 
-            document.getElementById('smrc-student-avatar').src = student.image || "[https://placehold.co/100x100/10b981/ffffff?text=Murid](https://placehold.co/100x100/10b981/ffffff?text=Murid)";
+            document.getElementById('smrc-student-avatar').src = student.image || "https://placehold.co/100x100/10b981/ffffff?text=Murid";
             document.getElementById('smrc-student-name').innerText = student.name;
             document.getElementById('smrc-student-class').innerText = student.class;
 
@@ -3786,20 +3829,13 @@ function displayActiveLatihan() {
                 dominantLevel = reviewedLogs[reviewedLogs.length - 1].level;
             }
             document.getElementById('smrc-average-score').innerText = reviewedLogs.length > 0 ? `${avgScore}%` : "N/A";
-            
             document.getElementById('smrc-trend-indicator').innerHTML = calculateTrend(personalLogs, selectedMonth);
 
-            // Dapatkan 3 Topik Terkini Unik
-            let latestLogsDesc = [...reviewedLogs].sort((a, b) => b.id - a.id);
-            let uniqueTopicsLogs = [];
-            let seenTopics = new Set();
-            for (let l of latestLogsDesc) {
-                if (!seenTopics.has(l.topicId)) {
-                    seenTopics.add(l.topicId);
-                    uniqueTopicsLogs.push(l);
-                }
-                if (uniqueTopicsLogs.length === 3) break;
-            }
+          // KEMAS KINI MUTLAK: Susunan Kalis Ralat String "LOG_"
+            let latestLogsDesc = [...reviewedLogs].sort((a, b) => (parseInt(String(b.id).replace(/\D/g, '')) || 0) - (parseInt(String(a.id).replace(/\D/g, '')) || 0));
+            
+            // KEMAS KINI BAHARU: Ambil 3 rekod teratas secara mutlak tanpa diskriminasi topik
+            let uniqueTopicsLogs = latestLogsDesc.slice(0, 3);
 
             let starHTML = "Belum Dinilai";
             if (uniqueTopicsLogs.length > 0) {
@@ -3824,7 +3860,6 @@ function displayActiveLatihan() {
                 badge.classList.add('hidden');
             }
 
-            // KAMUS KELEMAHAN: Reka bentuk mengikut konsep 100% Maklum Balas Sistem menyokong Tahap 1 hingga 6
             const weaknessContainer = document.getElementById('smrc-weakness-tags');
             weaknessContainer.innerHTML = "";
             let added = 0;
@@ -3922,27 +3957,32 @@ function displayActiveLatihan() {
 
             const audioContainer = document.getElementById('smrc-audio-recordings-list');
             audioContainer.innerHTML = "";
-            let sortedFilteredLogs = [...filteredLogs].sort((a, b) => b.id - a.id);
+            
+            // KEMAS KINI MUTLAK: Susunan Kalis Ralat String "LOG_"
+            let sortedFilteredLogs = [...filteredLogs].sort((a, b) => (parseInt(String(b.id).replace(/\D/g, '')) || 0) - (parseInt(String(a.id).replace(/\D/g, '')) || 0));
             
             if (sortedFilteredLogs.length > 0) {
                 sortedFilteredLogs.forEach((l, idx) => {
                     const activeScore = l.manualScore !== null ? l.manualScore : l.score;
                     
+                    const latestBadge = (idx === 0) ? 
+                        `<span class="ml-1.5 bg-gradient-to-r from-amber-200 to-yellow-400 text-amber-900 text-[9px] px-2 py-0.5 rounded-full font-black shadow-sm border border-amber-300"><i class="fa-solid fa-sparkles mr-1"></i>TERKINI</span>` : '';
+
                     const reviewBadge = l.isReviewed ? 
-                        `<span class="ml-2 bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded font-bold"><i class="fa-solid fa-circle-check"></i> Disemak oleh Guru</span>` : 
-                        `<span class="ml-2 bg-amber-50 text-amber-700 text-[9px] px-1.5 py-0.5 rounded font-bold border border-amber-200"><i class="fa-solid fa-clock"></i> Belum Disemak</span>`;
+                        `<span class="ml-1.5 bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded font-bold"><i class="fa-solid fa-circle-check"></i> Disemak</span>` : 
+                        `<span class="ml-1.5 bg-amber-50 text-amber-700 text-[9px] px-1.5 py-0.5 rounded font-bold border border-amber-200"><i class="fa-solid fa-clock"></i> Belum Disemak</span>`;
 
                     const displayScore = l.isReviewed ? `${activeScore}%` : 'N/A';
 
-                    // FASA 4 BAHARU: Pemain audio kompak dibina secara langsung di Portal Murid
                     const audioPlayerHTML = l.audioUrl 
                         ? `<audio src="${l.audioUrl}" controls class="h-6 w-32 rounded-lg bg-slate-100 shadow-sm"></audio>` 
                         : `<span class="text-[10px] text-slate-400 italic">Tiada audio</span>`;
 
                     audioContainer.innerHTML += `
                         <div onclick="renderSpecificWeakness('${l.id}', 'smrc')" class="py-2.5 flex justify-between items-center text-xs border-b last:border-0 border-slate-100 transition-colors hover:bg-slate-50 rounded-lg px-2 cursor-pointer group">
-                            <div class="min-w-0 flex-1">
+                            <div class="min-w-0 flex-1 flex items-center flex-wrap gap-y-1">
                                 <span class="font-bold text-slate-700 group-hover:text-emerald-600 transition-all">${l.topicTitle} (${l.date})</span>
+                                ${latestBadge}
                                 ${reviewBadge}
                             </div>
                             <div class="flex gap-2 items-center shrink-0">
@@ -3963,11 +4003,13 @@ function displayActiveLatihan() {
             const sessions = [...uniqueTopicsLogs].reverse(); 
             const labels = sessions.map((s, idx) => `Sesi ${idx + 1}`);
             const dataPoints = sessions.map(s => s.manualScore !== null ? s.manualScore : s.score);
+            const logIds = sessions.map(s => String(s.id));
 
             studentChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels.length > 0 ? labels : ["Tiada Data"],
+                    customIds: logIds,
                     datasets: [{
                         label: 'Skor Sebutan (%)', data: dataPoints.length > 0 ? dataPoints : [0],
                         backgroundColor: 'rgba(16, 185, 129, 0.8)',
@@ -4000,9 +4042,6 @@ function displayActiveLatihan() {
                 }
             });
         }
-
-
-
 
         /* ==========================================================================
            12. SPEECH SYNTHESIS & TTS VOICE CONTROLLER
@@ -4046,46 +4085,119 @@ function displayActiveLatihan() {
             });
         }
 
-        function normalizeTextForSpeech(text) {
+        // 1. KOD PENAPIS BERSIH (Gam Rumi Berjarak & Makhraj Tanpa Huruf Besar)
+       function normalizeTextForSpeech(text) {
             let normalized = text;
             const corrections = [
-                { regex: /assalam\s+alaikum/gi, replace: "Assalamualaikum" },
-                { regex: /warahmatu?\s+allah/gi, replace: "warahmatullahi" },
-                { regex: /ورحمة\s+الله/g, replace: "warahmatullahi" }, 
-                { regex: /wa?\s+rahmatullah/gi, replace: "warahmatullah" },
+                // --- Ejaan Agama (Memaksa cantuman penuh & huruf kecil elak eja "L") ---
+                { regex: /assalam\s+alaikum/gi, replace: "assalamualaikum" },
+                
+                // GAM SUPER KUAT: Menangkap sebarang variasi jarak dalam Rumi
+                // KEMAS KINI: Samakan ejaan "warahmatullah" dengan Premium (ElevenLabs)
+                { regex: /wa\s*rahmatul\s*lah/gi, replace: "warahmatullah" },
+                { regex: /warah\s*matul\s*lah/gi, replace: "warahmatullah" },
+                { regex: /warahmatu?\s+allah/gi, replace: "warahmatullah" },
+                { regex: /\bwarahmatullahi\b/gi, replace: "warahmatullahi" },
+                { regex: /\bwarahmatullah\b/gi, replace: "warahmatullah" },
+                { regex: /ورحمة\s+الله/g, replace: "warahmatullah" }, 
+                
                 { regex: /wa\s+barokatuh/gi, replace: "wabarakatuh" },
                 { regex: /wa\s+barakatuh/gi, replace: "wabarakatuh" },
-                { regex: /al\s+hamdulillah/gi, replace: "alhamdulillah" },
-                { regex: /bism\s+illah/gi, replace: "bismillah" },
-                { regex: /in\s+sya\s+allah/gi, replace: "insya-Allah" },
-                { regex: /masya\s+allah/gi, replace: "masya-Allah" },
-                { regex: /subhan\s+allah/gi, replace: "subhanallah" }
+                { regex: /al\s+hamdulillah/gi, replace: "alhamdulillah" }, 
+                { regex: /bism\s+illah/gi, replace: "bismillah" },       
+                { regex: /in\s+sya\s+allah/gi, replace: "insya alloh" }, 
+                { regex: /masya\s+allah/gi, replace: "masya alloh" },    
+                { regex: /subhan\s+allah/gi, replace: "subhanalloh" },   
+                
+                // Makhraj tebal untuk Allah (huruf kecil semua)
+                { regex: /\ballah\b/gi, replace: "alloh" },              
+                
+                // --- Padam Sengkang & Rapatkan Kata Sendi "ke" ---
+                { regex: /-/g, replace: "" },
+                { regex: /\bke\s+/gi, replace: "ke" },
+
+                // =================================================================
+                // KAMUS MAKHRAJ HURUF TUNGGAL JAWI
+                // =================================================================
+                { regex: /\b(ba|ta|tha|ca|ha|kha|ra|nga|fa|pa|ga|va|ya|nya)\b/gi, replace: "$1a" },
+                { regex: /ب/g, replace: "baa" },
+                { regex: /ت/g, replace: "taa" },
+                { regex: /ث/g, replace: "sa" },
+                { regex: /چ/g, replace: "caa" },
+                { regex: /ح/g, replace: "haa" },
+                { regex: /خ/g, replace: "kho" },
+                { regex: /ر/g, replace: "ro" },
+                { regex: /ڠ/g, replace: "ngaa" },
+                { regex: /ف/g, replace: "faa" },
+                { regex: /ڤ/g, replace: "paa" },
+                { regex: /ݢ|ڬ/g, replace: "gaa" },
+                { regex: /ۏ/g, replace: "vaa" },
+                { regex: /ي/g, replace: "yaa" },
+                { regex: /ڽ/g, replace: "nyaa" },
+                { regex: /ا/g, replace: "alif" },
+                { regex: /ج/g, replace: "jim" },
+                { regex: /د/g, replace: "dal" },
+                { regex: /ذ/g, replace: "zal" },
+                { regex: /ز/g, replace: "zai" },
+                { regex: /س/g, replace: "siin" },
+                { regex: /ش/g, replace: "syin" },
+                { regex: /ص/g, replace: "sod" },
+                { regex: /ض/g, replace: "dod" },
+                { regex: /ط/g, replace: "to" },
+                { regex: /ظ/g, replace: "zo" },
+                { regex: /ع/g, replace: "ain" },
+                { regex: /غ/g, replace: "ghain" },
+                { regex: /ق/g, replace: "qof" },
+                { regex: /ک|ك/g, replace: "kaf" },
+                { regex: /ل/g, replace: "lam" },
+                { regex: /م/g, replace: "mim" },
+                { regex: /ن/g, replace: "nun" },
+                { regex: /و/g, replace: "waw" },
+                { regex: /ه/g, replace: "haa" },
+                { regex: /ء/g, replace: "hamzah" },
+
+               // --- PEMBETULAN MELAYU (WAJIB LETAK DI SINI SUPAYA TIDAK DIGANGGU OLEH SISTEM HURUF JAWI) ---
+                { regex: /\bkarnival\b/gi, replace: "kar ni val" },
+                { regex: /\bkuiz\b/gi, replace: "kuwiz" },
+                { regex: /\bpameran\b/gi, replace: "pa <lang xml:lang='en-US'>may run</lang>" },
+                { regex: /\baktiviti\b/gi, replace: "akti fiti" }
             ];
+            
             corrections.forEach(rule => {
                 normalized = normalized.replace(rule.regex, rule.replace);
             });
+
+            // KAWALAN KETAT 1 PERKATAAN 
+            let words = normalized.trim().split(/\s+/);
+            if (words.length === 1) {
+                let cleanWord = words[0].toLowerCase().replace(/[.,!?]/g, "");
+                
+                if (cleanWord.match(/^(ke|lam|mim|nun|dal|zal|sin|syin|sod|dod|to|zo)$/)) {
+                    normalized = normalized.replace(new RegExp(cleanWord, "i"), cleanWord + ",");
+                } 
+                else {
+                    // Halang penambahan 'ah' jika perkataan sudah ada format makhraj yang tebal/panjang
+                    if (!normalized.match(/(aa|hi|oh|ah)[.,!?]*$/i)) { 
+                        normalized = normalized.replace(/a([.,!?]*)$/i, "ah$1");
+                    }
+                }
+                
+                if (!normalized.endsWith(",")) {
+                    normalized += ",";
+                }
+            }
+
             return normalized;
         }
-
+        let currentCloudAudio = null;
+        let cloudAnimFrameId = null;
+        
         function fallbackStandardTTS(text, speed, isSync) {
+            if (!window.speechSynthesis) return;
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.rate = speed;
-            utterance.lang = "ms-MY";
-            
-            const bestVoice = getBestMalayVoice();
-            if (bestVoice) {
-                utterance.voice = bestVoice;
-            }
-            
+            utterance.lang = "id-ID";
             if (isSync) {
-                utterance.onboundary = function(event) {
-                    if (event.name === 'word') {
-                        const charIndex = event.charIndex;
-                        const textUpToChar = text.substring(0, charIndex);
-                        const wordIndex = textUpToChar.split(/\s+/).filter(w => w.length > 0).length;
-                        highlightWordInBoard(wordIndex);
-                    }
-                };
                 utterance.onend = function() {
                     clearWordHighlights();
                 };
@@ -4093,12 +4205,12 @@ function displayActiveLatihan() {
             window.speechSynthesis.speak(utterance);
         }
 
-        let currentCloudAudio = null;
-        let cloudAnimFrameId = null;
-
+       // 2. KOD ENJIN SUARA MICROSOFT AZURE (Kekal Asal + Fix Ke-Sekolah)
         async function executeCloudTTS(wordsArray, speed, isSync) {
-            const CLOUD_API_KEY = "AIzaSyDy6so65xVsOS2ZlmL1DuEiYOK1SUTsNwo";
-            const url = `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${CLOUD_API_KEY}`;
+            const AZURE_KEY = "5pOUDAGQZPeivynNfwlgQpK11qIwt7EbnoseGuL8srCtSoKW3bBrJQQJ99CGACqBBLyXJ3w3AAAYACOG992E"; 
+            const REGION = "southeastasia"; 
+            
+            const url = `https://${REGION}.tts.speech.microsoft.com/cognitiveservices/v1`;
             
             if (currentCloudAudio) {
                 currentCloudAudio.pause();
@@ -4106,89 +4218,113 @@ function displayActiveLatihan() {
                 clearWordHighlights();
             }
 
-            let ssml = "<speak>";
-            wordsArray.forEach((word, index) => {
-                let cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
-                cleanWord = normalizeTextForSpeech(cleanWord);
-                if (cleanWord) {
-                    ssml += `<mark name="${index}"/>${cleanWord} `;
-                }
-            });
-            ssml += "</speak>";
+            let plainText = wordsArray.join(" ").trim();
+            
+            // =====================================================================
+            // ARAHAN KHAS CIKGU: RAWATAN KATA SENDI NAMA & BUANG SENGKANG
+            // =====================================================================
+            // 1. Asingkan awalan Jawi "ke-" dan "di-" kepada ejaan Rumi berjarak dahulu.
+            // Ini memaksa Azure sebut "ke" dengan bunyi e-taling/pepet yang sempurna.
+            plainText = plainText.replace(/\bke-/gi, "ke ");
+            plainText = plainText.replace(/\bdi-/gi, "di ");
+            
+            // 2. Barulah kita buang baki sengkang untuk cantumkan suku kata biasa (sa-ya -> saya)
+            plainText = plainText.replace(/-/g, ""); 
+            // =====================================================================
 
-            const payload = {
-                input: { ssml: ssml },
-                voice: { 
-                    languageCode: "ms-MY", 
-                    name: "ms-MY-Wavenet-A" 
-                }, 
-                audioConfig: { 
-                    audioEncoding: "MP3" 
-                },
-                enableTimePointing: ["SSML_MARK"]
-            };
+            plainText = normalizeTextForSpeech(plainText);
+            
+            // Pembolehubah teks kembali bersih (Tiada lagi kod <lang xml:lang="id-ID">)
+            let ssmlText = plainText;
+
+            const ssml = `
+                <speak version='1.0' xml:lang='ms-MY'>
+                    <voice xml:lang='ms-MY' xml:gender='Female' name='ms-MY-YasminNeural'>
+                        <prosody rate='${speed}'>
+                            ${ssmlText}
+                        </prosody>
+                    </voice>
+                </speak>`;
 
             try {
+                if (!AZURE_KEY || AZURE_KEY.includes("MASUKKAN")) {
+                    throw new Error("Kunci API Azure belum dimasukkan.");
+                }
+
                 const response = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    headers: {
+                        'Ocp-Apim-Subscription-Key': AZURE_KEY,
+                        'Content-Type': 'application/ssml+xml',
+                        'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3'
+                    },
+                    body: ssml
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Ralat Google Cloud Status ${response.status}`);
+                    throw new Error(`Ralat Azure Status: ${response.status}`);
                 }
 
-                const data = await response.json();
-                if (data.error) throw new Error(data.error.message);
-
-                const audioSrc = "data:audio/mp3;base64," + data.audioContent;
-                const timepoints = data.timepoints || []; 
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
                 
-                currentCloudAudio = new Audio(audioSrc);
+                currentCloudAudio = new Audio(audioUrl);
                 currentCloudAudio.playbackRate = speed;
                 
-                if (isSync && timepoints.length > 0) {
-                    currentCloudAudio.play();
-                    
-                    function updateHighlight() {
-                        if (!currentCloudAudio || currentCloudAudio.paused) return;
+                currentCloudAudio.onloadedmetadata = () => {
+                    if (isSync) {
+                        const wordWeights = wordsArray.map(w => {
+                            let weight = w.length;
+                            if (w.includes(',')) weight += 4; 
+                            if (w.includes('.')) weight += 6; 
+                            return weight;
+                        });
                         
-                        const physicalTime = currentCloudAudio.currentTime;
-                        let currentMarkIndex = -1;
+                        const totalWeight = wordWeights.reduce((a, b) => a + b, 0);
+                        let totalDuration = currentCloudAudio.duration;
+                        
+                        if (totalDuration === Infinity || isNaN(totalDuration)) {
+                            totalDuration = wordsArray.length * 0.6;
+                        }
+                        
+                        let currentTimeCounter = 0;
+                        const wordTimings = wordWeights.map(weight => {
+                            const wordDuration = (weight / totalWeight) * totalDuration;
+                            const start = currentTimeCounter;
+                            const end = start + wordDuration;
+                            currentTimeCounter = end;
+                            return { start, end };
+                        });
 
-                        for (let i = 0; i < timepoints.length; i++) {
-                            if (physicalTime >= timepoints[i].timeSeconds) {
-                                currentMarkIndex = parseInt(timepoints[i].markName);
-                            } else {
-                                break; 
+                        currentCloudAudio.ontimeupdate = () => {
+                            const currentAbsTime = currentCloudAudio.currentTime;
+                            let activeIndex = -1;
+                            
+                            for (let i = 0; i < wordTimings.length; i++) {
+                                if (currentAbsTime >= wordTimings[i].start && currentAbsTime <= wordTimings[i].end) {
+                                    activeIndex = i;
+                                    break;
+                                }
                             }
-                        }
-
-                        if (currentMarkIndex >= 0) {
-                            highlightWordInBoard(currentMarkIndex);
-                        }
-
-                        cloudAnimFrameId = requestAnimationFrame(updateHighlight);
+                            
+                            if (activeIndex !== -1) {
+                                highlightWordInBoard(activeIndex);
+                            }
+                        };
                     }
-                    
-                    updateHighlight();
-
-                    currentCloudAudio.onended = () => {
-                        cancelAnimationFrame(cloudAnimFrameId);
-                        clearWordHighlights();
-                    };
-                } else {
                     currentCloudAudio.play();
-                    currentCloudAudio.onended = () => clearWordHighlights();
-                }
+                };
+
+                currentCloudAudio.onended = () => {
+                    clearWordHighlights();
+                };
 
             } catch (err) {
-                console.warn("Kembali kepada suara asas kerana ralat:", err.message);
-                fallbackStandardTTS(wordsArray.join(" "), speed, isSync);
+                console.error("RALAT KANTOI AZURE:", err);
+                showToast("Sistem Azure Gagal. Menggunakan suara asas peranti.", "error");
+                fallbackStandardTTS(plainText, speed, isSync);
             }
         }
-
        async function executePremiumTTS(promptText, speed, isSync = false) {
             const settings = JSON.parse(AppStorage.getItem('e_smart_settings')) || {};
             const elevenLabsApiKey = settings.audioApi;
@@ -4273,7 +4409,10 @@ function displayActiveLatihan() {
             }
         }
 
-function speakSingleWord(jawiWord, rumiWord, buttonEl) {
+// =====================================================================
+        // FUNGSI 1: BACAAN SATU PERKATAAN (KLIK)
+        // =====================================================================
+      function speakSingleWord(jawiWord, rumiWord, buttonEl) {
             document.querySelectorAll('#jawi-reading-board button').forEach(b => {
                 b.classList.remove('audio-highlight-active');
             });
@@ -4298,21 +4437,54 @@ function speakSingleWord(jawiWord, rumiWord, buttonEl) {
                 "ء": "هَمْZَۃ", "ي": "يَاء"
             };
             const malayJawiPhonetics = {
-                "چ": "chaa", "ڤ": "paa", "ݢ": "gaa", "ڬ": "gaa", "ۏ": "vaa", "ڽ": "nyaa"
+                "چ": "chaa", "ڤ": "paa", "ݢ": "gaa", "ڬ": "gaa", "ۏ": "vaa", "ڽ": "nyaa", "ڠ": "nga"
             };
-            const rumiMakhrajMap = {
-                "ا": "alif", "ب": "ba", "ت": "ta", "ث": "tha", "ج": "jim", "ح": "ha", "kh": "kha", "د": "dal", "ذ": "zal", "ر": "ra", "ز": "zai", "س": "sin", "ش": "syin", "ص": "sod", "ض": "dod", "ط": "to", "ظ": "zo", "ع": "ain", "غ": "ghain", "fa": "fa", "qaf": "qaf", "kaf": "kaf", "lam": "lam", "mim": "mim", "nun": "nun", "waw": "waw", "ha": "ha", "hamzah": "hamzah", "ya": "ya", "ca": "ca", "pa": "pa", "ga": "ga", "va": "va", "nya": "nya", "nga": "nga"
+           const rumiMakhrajMap = {
+                "ا": "alif", "ب": "ba", "ت": "ta", "ث": "sa", "ج": "jim", "ح": "ha", "خ": "kho", 
+                "د": "dal", "ذ": "zal", "ر": "ro", "ز": "zai", "س": "siin", "ش": "syin", "ص": "sod", 
+                "ض": "dod", "ط": "to", "ظ": "zo", "ع": "ain", "غ": "ghain", "ف": "fa", "ق": "qof", 
+                "ک": "kaf", "ك": "kaf", "ل": "lam", "م": "mim", "ن": "nun", "و": "waw", "ه": "ha", 
+                "ء": "hamzah", "ي": "ya", "چ": "ca", "ڤ": "pah", "ݢ": "ga", "ڬ": "ga", "ۏ": "va", 
+                "ڽ": "nya", "ڠ": "nga"
+            };
+
+            // =====================================================================
+            // KAMUS ELEVENLABS KHAS (Guna ejaan STANDARD untuk elak eja huruf L)
+            // =====================================================================
+            const islamicPhrasesPremium = {
+                "allah": "Allah",
+                "warahmatullah": "warahmatullah",
+                "warahmatullahi": "warahmatullahi",
+                "insyaallah": "insya-Allah",
+                "masyaallah": "masya-Allah",
+                "subhanallah": "subhanallah",
+                "alhamdulillah": "alhamdulillah",
+                "bismillah": "bismillah",
+                "assalamualaikum": "Assalamualaikum",
+                "wabarakatuh": "wabarakatuh"
+            };
+
+            // =====================================================================
+            // KAMUS AZURE (Kekal dengan fonetik kecuali warahmatullah)
+            // =====================================================================
+            const islamicPhrasesAzure = {
+                "allah": "alloh",
+                "warahmatullah": "warahmatullah",   
+                "warahmatullahi": "warahmatullahi", 
+                "insyaallah": "insya alloh",
+                "masyaallah": "masya alloh",
+                "subhanallah": "subhanalloh",
+                "alhamdulillah": "alhamdulillah",
+                "bismillah": "bismillah",
+                "assalamualaikum": "assalamualaikum",
+                "wabarakatuh": "wabarakatuh",
+                "aktiviti": "aktifiti"
             };
 
             if (isPremium) {
-                if (cleanJawi === "ڠ") {
-                    executeCloudTTS(["nga"], speed, false);
-                    setTimeout(() => buttonEl.classList.remove('audio-highlight-active'), 1000);
-                    return;
-                }
-
-                if (cleanRumi === "allah") {
-                    wordToSpeak = "الله"; 
+                // Untuk ElevenLabs, guna Kamus Standard
+                if (islamicPhrasesPremium[cleanRumi]) {
+                    wordToSpeak = islamicPhrasesPremium[cleanRumi];
                 } else if (arabicMakhrajMap[cleanJawi]) {
                     wordToSpeak = arabicMakhrajMap[cleanJawi];
                 } else if (malayJawiPhonetics[cleanJawi]) {
@@ -4321,23 +4493,30 @@ function speakSingleWord(jawiWord, rumiWord, buttonEl) {
                 executePremiumTTS(wordToSpeak, speed, false);
                 setTimeout(() => buttonEl.classList.remove('audio-highlight-active'), 1000);
             } else {
-                // PERBAIKAN MUTLAK: Memaksa pembandingan kesukaran tahap 1 kalis jenis data String
                 const topics = JSON.parse(AppStorage.getItem('e_smart_topics')) || [];
                 const activeTopicObj = topics.find(t => String(t.id) === String(topicId));
                 if (topicId && activeTopicObj && String(activeTopicObj.difficulty) === "1") {
                     wordToSpeak = rumiMakhrajMap[cleanJawi] || wordToSpeak;
                 }
+                
+                // Untuk Azure, guna Kamus Fonetik yang telah diselaraskan
+                if (islamicPhrasesAzure[cleanRumi]) {
+                    wordToSpeak = islamicPhrasesAzure[cleanRumi];
+                }
+                
                 executeCloudTTS([wordToSpeak], speed, false);
                 setTimeout(() => buttonEl.classList.remove('audio-highlight-active'), 1000);
             }
         }
 
-function speakEntireText() {
+        // =====================================================================
+        // FUNGSI 2: BACAAN KESELURUHAN AYAT
+        // =====================================================================
+        function speakEntireText() {
             const topicId = document.getElementById('student-topic-select').value;
             if (!topicId) return;
 
             const topics = JSON.parse(AppStorage.getItem('e_smart_topics')) || [];
-            // PERBAIKAN MUTLAK: Memaksa ID topik ditukar kepada String untuk carian selamat
             const topic = topics.find(t => String(t.id) === String(topicId));
             
             const isPremium = document.getElementById('audio-voice-type').value === 'premium';
@@ -4355,34 +4534,51 @@ function speakEntireText() {
                 "م": "مِيم", "ن": "نُون", "و": "وَاو", "ه": "هَاء",
                 "ء": "هَمْZَۃ", "ي": "يَاء"
             };
+            
+            // KEMAS KINI: Tukar "ngaa" kepada "nga"
             const malayJawiPhonetics = {
-                "چ": "chaa", "ڤ": "paa", "ݢ": "gaa", "ڬ": "gaa", "ۏ": "vaa", "ڽ": "nyaa"
+                "چ": "chaa", "ڤ": "paa", "ݢ": "gaa", "ڬ": "gaa", "ۏ": "vaa", "ڽ": "nyaa", "ڠ": "nga"
             };
+            
             const rumiMakhrajMap = {
-                "ا": "alif", "ب": "ba", "ت": "ta", "ث": "tha", "ج": "jim", "ح": "ha", "خ": "kha", "د": "dal", "ذ": "zal", "ra": "ra", "ر": "ra", "ز": "zai", "س": "sin", "sh": "sin", "s": "sin", "syin": "syin", "sad": "sad", "dad": "dad", "ta": "ta", "za": "za", "ain": "ain", "ghain": "ghain", "fa": "fa", "qaf": "qaf", "kaf": "kaf", "lam": "lam", "mim": "mim", "nun": "nun", "waw": "waw", "ha": "ha", "hamzah": "hamzah", "ya": "ya", "ca": "ca", "pa": "pa", "ga": "ga", "va": "va", "nya": "nya", "nga": "nga"
+                "ا": "alif", "ب": "ba", "ت": "ta", "ث": "sa", "ج": "jim", "ح": "ha", "خ": "kho", 
+                "د": "dal", "ذ": "zal", "ر": "ro", "ز": "zai", "س": "siin", "ش": "syin", "ص": "sod", 
+                "ض": "dod", "ط": "to", "ظ": "zo", "ع": "ain", "غ": "ghain", "ف": "fa", "ق": "qof", 
+                "ک": "kaf", "ك": "kaf", "ل": "lam", "م": "mim", "ن": "nun", "و": "waw", "ه": "ha", 
+                "ء": "hamzah", "ي": "ya", "چ": "ca", "ڤ": "pah", "ݢ": "ga", "ڬ": "ga", "ۏ": "va", 
+                "ڽ": "nya", "ڠ": "nga"
             };
 
             if (isPremium) {
                 let textToRead = "";
-                // PERBAIKAN MUTLAK: Memaksa pembandingan kesukaran tahap 1 kalis jenis data String
                 if (String(topic.difficulty) === "1") { 
                     const jawiWords = topic.jawiText.split(/\s+/);
                     const rumiWords = topic.rumiText.split(/\s+/);
                     textToRead = jawiWords.map((j, idx) => {
                         const cleanJ = j.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
-                        if (cleanJ === "ڠ") return "nga"; 
                         if (arabicMakhrajMap[cleanJ]) return arabicMakhrajMap[cleanJ];
                         if (malayJawiPhonetics[cleanJ]) return malayJawiPhonetics[cleanJ];
                         return rumiWords[idx] || "";
                     }).join(" ");
                 } else {
-                    textToRead = normalizeTextForSpeech(topic.rumiText);
+                    let premiumText = topic.rumiText;
+                    
+                    premiumText = premiumText.replace(/wa\s*rahmatul\s*lah/gi, "warahmatullah");
+                    premiumText = premiumText.replace(/warah\s*matul\s*lah/gi, "warahmatullah");
+                    premiumText = premiumText.replace(/warahmatu?\s+allah/gi, "warahmatullah");
+                    premiumText = premiumText.replace(/wa\s+barokatuh/gi, "wabarakatuh");
+                    premiumText = premiumText.replace(/wa\s+barakatuh/gi, "wabarakatuh");
+                    premiumText = premiumText.replace(/in\s+sya\s+allah/gi, "insya-Allah");
+                    premiumText = premiumText.replace(/masya\s+allah/gi, "masya-Allah");
+                    premiumText = premiumText.replace(/subhan\s+allah/gi, "subhanallah");
+                    
+                    premiumText = premiumText.replace(/-/g, "");
+                    
+                    textToRead = premiumText;
                 }
                 executePremiumTTS(textToRead, speed, true);
             } else {
                 const rumiWords = topic.rumiText.split(/\s+/);
-                
-                // PERBAIKAN MUTLAK: Memaksa pembandingan kesukaran tahap 1 kalis jenis data String
                 if (String(topic.difficulty) === "1") {
                     const jawiWords = topic.jawiText.split(/\s+/);
                     const wordsToRead = jawiWords.map((j, idx) => {
@@ -4395,7 +4591,6 @@ function speakEntireText() {
                 }
             }
         }
-
         let topicToDeleteId = null;
 
        function deleteTopic(id) {
@@ -4976,7 +5171,6 @@ function renderOverallAnalysis() {
             const students = JSON.parse(AppStorage.getItem('e_smart_students')) || [];
             const student = students.find(s => String(s.ic).trim() === String(ic).trim());
             
-            // JAMINAN KESELAMATAN (MENGELAKKAN JS TERHENTI JIKA DATA MURID KOSONG)
             if (!student) {
                 showToast("Data murid tidak dijumpai!", "error");
                 return;
@@ -4995,8 +5189,7 @@ function renderOverallAnalysis() {
                 return { ...l, level: t ? parseInt(t.difficulty) : 3, topicTitle: t ? t.title : "Topik" };
             });
 
-            // PEMBETULAN PAUTAN AVATAR
-            document.getElementById('rc-student-avatar').src = student.image || "[https://placehold.co/100x100/10b981/ffffff?text=Murid](https://placehold.co/100x100/10b981/ffffff?text=Murid)";
+            document.getElementById('rc-student-avatar').src = student.image || "https://placehold.co/100x100/10b981/ffffff?text=Murid";
             document.getElementById('rc-student-name').innerText = student.name;
             document.getElementById('rc-student-class').innerText = student.class;
 
@@ -5028,17 +5221,11 @@ function renderOverallAnalysis() {
 
             document.getElementById('rc-trend-indicator').innerHTML = calculateTrend(personalLogs, selectedMonth);
 
-            // Dapatkan 3 Topik Terkini Unik
-            let latestLogsDesc = [...reviewedLogs].sort((a, b) => b.id - a.id);
-            let uniqueTopicsLogs = [];
-            let seenTopics = new Set();
-            for (let l of latestLogsDesc) {
-                if (!seenTopics.has(l.topicId)) {
-                    seenTopics.add(l.topicId);
-                    uniqueTopicsLogs.push(l);
-                }
-                if (uniqueTopicsLogs.length === 3) break;
-            }
+            // KEMAS KINI MUTLAK: Susunan Kalis Ralat String "LOG_"
+            let latestLogsDesc = [...reviewedLogs].sort((a, b) => (parseInt(String(b.id).replace(/\D/g, '')) || 0) - (parseInt(String(a.id).replace(/\D/g, '')) || 0));
+            
+            // KEMAS KINI BAHARU: Ambil 3 rekod teratas secara mutlak tanpa diskriminasi topik
+            let uniqueTopicsLogs = latestLogsDesc.slice(0, 3);
 
             let starHTML = "Belum Dinilai";
             if (uniqueTopicsLogs.length > 0) {
@@ -5063,7 +5250,6 @@ function renderOverallAnalysis() {
                 badge.classList.add('hidden');
             }
 
-            // KAMUS KELEMAHAN: Reka bentuk menyokong Tahap 1 hingga 6 (Konsep Maklum Balas Sistem)
             const weaknessContainer = document.getElementById('rc-weakness-tags');
             weaknessContainer.innerHTML = "";
             let added = 0;
@@ -5161,27 +5347,32 @@ function renderOverallAnalysis() {
 
             const audioContainer = document.getElementById('rc-audio-recordings-list');
             audioContainer.innerHTML = "";
-            let sortedFilteredLogs = [...filteredLogs].sort((a, b) => b.id - a.id);
+            
+            // KEMAS KINI MUTLAK: Susunan Kalis Ralat String "LOG_"
+            let sortedFilteredLogs = [...filteredLogs].sort((a, b) => (parseInt(String(b.id).replace(/\D/g, '')) || 0) - (parseInt(String(a.id).replace(/\D/g, '')) || 0));
 
             if (sortedFilteredLogs.length > 0) {
                 sortedFilteredLogs.forEach((l, idx) => {
                     const activeScore = l.manualScore !== null ? l.manualScore : l.score;
                     
+                    const latestBadge = (idx === 0) ? 
+                        `<span class="ml-1.5 bg-gradient-to-r from-amber-200 to-yellow-400 text-amber-900 text-[9px] px-2 py-0.5 rounded-full font-black shadow-sm border border-amber-300"><i class="fa-solid fa-sparkles mr-1"></i>TERKINI</span>` : '';
+
                     const reviewBadge = l.isReviewed ? 
-                        `<span class="ml-2 bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded font-bold"><i class="fa-solid fa-circle-check"></i> Disemak</span>` : 
-                        `<span class="ml-2 bg-amber-50 text-amber-700 text-[9px] px-1.5 py-0.5 rounded font-bold border border-amber-200"><i class="fa-solid fa-clock"></i> Belum Disemak</span>`;
+                        `<span class="ml-1.5 bg-emerald-50 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded font-bold"><i class="fa-solid fa-circle-check"></i> Disemak</span>` : 
+                        `<span class="ml-1.5 bg-amber-50 text-amber-700 text-[9px] px-1.5 py-0.5 rounded font-bold border border-amber-200"><i class="fa-solid fa-clock"></i> Belum Disemak</span>`;
 
                     const displayScore = l.isReviewed ? `${activeScore}%` : 'N/A';
 
-                    // FASA 4 BAHARU: Pemain audio kompak dibina secara langsung di Portal Guru
                     const audioPlayerHTML = l.audioUrl 
                         ? `<audio src="${l.audioUrl}" controls class="h-6 w-32 rounded-lg bg-slate-100 shadow-sm"></audio>` 
                         : `<span class="text-[10px] text-slate-400 italic">Tiada audio</span>`;
 
                      audioContainer.innerHTML += `
                         <div class="py-2.5 flex justify-between items-center text-xs border-b last:border-0 border-slate-100 group transition-colors hover:bg-slate-50 rounded-lg px-2">
-                            <div class="min-w-0 flex-1 cursor-pointer" onclick="renderSpecificWeakness('${l.id}', 'rc')">
+                            <div class="min-w-0 flex-1 flex items-center flex-wrap gap-y-1 cursor-pointer" onclick="renderSpecificWeakness('${l.id}', 'rc')">
                                 <span class="font-bold text-slate-700 group-hover:text-emerald-600 transition-colors">${l.topicTitle} (${l.date})</span>
+                                ${latestBadge}
                                 ${reviewBadge}
                             </div>
                             <div class="flex gap-2 items-center shrink-0">
@@ -5200,8 +5391,6 @@ function renderOverallAnalysis() {
             buildProgressChart('rc-progress-chart', uniqueTopicsLogs);
         }
 
-
-
         function buildProgressChart(canvasId, reviewedLogs) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             if (chartInstance) chartInstance.destroy();
@@ -5209,14 +5398,16 @@ function renderOverallAnalysis() {
             const sessions = [...reviewedLogs].reverse(); 
             const labels = sessions.map((s, idx) => `Sesi ${idx + 1}`);
             const dataPoints = sessions.map(s => s.manualScore !== null ? s.manualScore : s.score);
+            const logIds = sessions.map(s => String(s.id)); // KOD TAMBAHAN: Pengikat ID untuk Graf
 
             chartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels.length > 0 ? labels : ["Tiada Data"],
+                    customIds: logIds, // KOD TAMBAHAN: Simpan ID ke dalam memori Graf
                     datasets: [{
                         label: 'Skor Sebutan (%)', data: dataPoints.length > 0 ? dataPoints : [0],
-                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)', // Warna Hijau Asal
                         borderRadius: 6,
                         maxBarThickness: 50
                     }]
@@ -5566,6 +5757,93 @@ function printStudentReport() {
                 .catch(err => {
                     showToast("Gagal menyambung. Sila pastikan kebenaran akses diletakkan kepada 'Anyone'!", "error");
                 });
+        }
+// ==========================================================================
+        // FUNGSI IMPORT CSV (DAFTAR MURID PUKAL)
+        // ==========================================================================
+        function processCSVUpload(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            
+            // Pengesahan format fail (Mesti CSV)
+            if (!file.name.toLowerCase().endsWith('.csv')) {
+                showToast("Sila muat naik fail berformat .csv sahaja!", "error");
+                input.value = "";
+                return;
+            }
+
+            showToast("Membaca data fail CSV...", "warning");
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                // Pecahkan data mengikut baris (Enter)
+                const rows = text.split(/\r?\n/);
+                
+                let students = JSON.parse(AppStorage.getItem('e_smart_students')) || [];
+                let addedCount = 0;
+                let newStudents = [];
+
+                for (let i = 0; i < rows.length; i++) {
+                    const rowText = rows[i].trim();
+                    if (!rowText) continue;
+                    
+                    // Pemisah koma pintar (Kalis jika ada koma di dalam nama)
+                    const cols = rowText.split(/(?!\B"[^"]*),(?![^"]*"\B)/).map(col => col.replace(/^"|"$/g, '').trim());
+                    
+                    // ABAIKAN baris pertama jika ia adalah TAJUK (Header: NAMA, IC, dll)
+                    if (cols[0].toLowerCase().includes('nama') || cols[1].toLowerCase().includes('ic')) continue;
+                    
+                    if (cols.length >= 5) {
+                        const name = cols[0];
+                        const ic = cols[1];
+                        const school = cols[2];
+                        const kelas = cols[3];
+                        const supervisor = cols[4];
+
+                        // Sistem Pengesan Duplikat Pintar: Skip jika IC murid dah wujud
+                        if (students.some(s => String(s.ic).trim() === ic)) continue;
+
+                        const newStudent = {
+                            id: "CSV_" + Date.now().toString() + "_" + addedCount, // ID Unik Automatik
+                            name: name,
+                            ic: ic,
+                            school: school,
+                            class: kelas,
+                            supervisor: supervisor,
+                            image: "" // Gambar lalai (kosong) dibiarkan
+                        };
+                        
+                        students.push(newStudent);
+                        newStudents.push(newStudent);
+                        addedCount++;
+                    }
+                }
+
+                if (addedCount > 0) {
+                    // Simpan terus ke Memori Peranti (IndexedDB/LocalStorage)
+                    AppStorage.setItem('e_smart_students', JSON.stringify(students));
+                    renderStudentTable();
+                    populateClassFilters();
+                    
+                    showToast(`${addedCount} orang murid berjaya diimport! Menyegerak ke awan (Sheets)...`, "success");
+                    
+                    // TEKNIK BERATUR (QUEUE): Hantar ke Google Sheets secara berturut (delay 1 saat) 
+                    // bagi mengelakkan Google pelayan terhenti / limit terlampau
+                    newStudents.forEach((stud, idx) => {
+                        setTimeout(() => {
+                            syncToGoogleSheets('DAFTAR MURID', stud, 'INSERT');
+                        }, (idx + 1) * 1000); // 1 saat untuk setiap murid
+                    });
+                } else {
+                    showToast("Tiada murid baru ditambah. (Format salah atau IC sudah didaftarkan)", "warning");
+                }
+                
+                // Reset kotak input supaya boleh upload lagi
+                input.value = "";
+            };
+            
+            reader.readAsText(file);
         }
     </script>
 </body>
