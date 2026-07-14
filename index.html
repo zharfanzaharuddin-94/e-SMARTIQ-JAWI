@@ -179,7 +179,7 @@
             <!-- Logo Sekolah -->
             <div class="flex flex-col items-center mb-8">
                 <div class="w-32 h-32 rounded-full overflow-hidden border-4 border-emerald-500 shadow-md flex items-center justify-center bg-emerald-50 mb-4 transition-transform hover:scale-105">
-                    <img src="https://iili.io/Ky1xH3F.jpg" alt="Logo Sekolah" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/150x150/10b981/ffffff?text=e-SMARTIQ'">
+                    <img src="https://iili.io/CEswKMB.md.png" alt="Logo Sekolah" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/150x150/10b981/ffffff?text=e-SMARTIQ'">
                 </div>
                 <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-800 tracking-tight">e-SMARTIQ JAWI</h1>
                 <p id="portal-subtitle" class="text-slate-500 font-semibold tracking-wide text-xs uppercase mt-1">Portal Murid</p>
@@ -960,7 +960,7 @@
                                 <p id="reading-stuck-count" class="text-3xl font-black text-amber-900">0</p>
                             </div>
                             <div class="bg-rose-50 p-4 rounded-2xl text-center space-y-1">
-                                <span class="text-xs text-rose-700 uppercase font-semibold">Tertinggal</span>
+                                <span class="text-[11px] text-rose-700 uppercase font-semibold">Salah Sebutan / Tertinggal</span>
                                 <p id="reading-tertinggal-count" class="text-3xl font-black text-rose-900">0</p>
                             </div>
                         </div>
@@ -2981,12 +2981,23 @@ function saveTopic() {
             tCurrentRumi = topic.rumiText.split(/\s+/);
             tWordStates = new Array(jawiWords.length).fill(0);
 
-            // PENAMBAHBAIKAN: Mod Guru hanya memaparkan amaran/warna jika rekod itu PERNAH
-            // ditanda oleh guru sebelum ini (manualScore ada nilai). Jika baru kali pertama, bersih.
-            if(log.weaknessTags && log.manualScore !== null) {
+            // KOD PENYELAMAT 2: Baca kedudukan tepat butang jika wujud, jika tidak, guna pelindung anti-duplikat
+            if (log.wordStates && log.wordStates.length === jawiWords.length) {
+                tWordStates = [...log.wordStates];
+            } else if (log.weaknessTags && log.manualScore !== null) {
+                let tempTags = [...log.weaknessTags]; 
                 tCurrentRumi.forEach((r, idx) => {
-                    if(log.weaknessTags && log.weaknessTags.includes(`[Salah/Tinggal] ${r}`)) tWordStates[idx] = 2;
-                    else if(log.weaknessTags && log.weaknessTags.includes(`[Sangkut] ${r}`)) tWordStates[idx] = 1;
+                    let mIdx = tempTags.indexOf(`[Salah/Tinggal] ${r}`);
+                    if (mIdx !== -1) { 
+                        tWordStates[idx] = 2; 
+                        tempTags.splice(mIdx, 1); // Potong dari memori supaya tak berjangkit ke perkataan sama yang lain
+                    } else {
+                        let oIdx = tempTags.indexOf(`[Sangkut] ${r}`);
+                        if (oIdx !== -1) { 
+                            tWordStates[idx] = 1; 
+                            tempTags.splice(oIdx, 1); 
+                        }
+                    }
                 });
             }
 
@@ -3166,9 +3177,11 @@ function saveLiveManualGrading() {
             let totalWords = buttons.length;
             let markahDiperoleh = 0.0;
             let tags = [];
+            let currentWordStates = []; // KOD PENYELAMAT 3A: Karung simpanan kedudukan butang
 
             buttons.forEach(btn => {
                 let state = parseInt(btn.getAttribute('data-state') || '0');
+                currentWordStates.push(state); // Masukkan susunan warna butang ke dalam karung
                 let rumi = btn.getAttribute('data-rumi');
                 if (state === 0) {
                     markahDiperoleh += 1.0; // Betul
@@ -3290,8 +3303,9 @@ function saveLiveManualGrading() {
                 stuckCount: tags.filter(t => t.includes('Sangkut')).length,
                 tertinggal: tags.filter(t => t.includes('Tinggal')).length,
                 date: new Date().toISOString().split('T')[0],
-                audioUrl: "", // Akan diisi di analyze seandainya dirakam, atau kosong semasa menanda terus
+                audioUrl: "", 
                  weaknessTags: tags,
+                 wordStates: currentWordStates, // KOD PENYELAMAT 3B: Masukkan karung ke dalam bungkusan rekod
                 isReviewed: true 
             };
 
@@ -5068,7 +5082,7 @@ function renderOverallAnalysis() {
         <!-- Kepala Surat Rasmi (Letterhead) Laporan Kementerian/Sekolah -->
         <div class="border-b-4 border-double border-slate-800 pb-5 mb-6 flex items-center justify-between">
             <div class="flex items-center gap-4">
-                <img src="https://iili.io/Ky1xH3F.jpg" alt="Logo Sekolah" class="w-14 h-14 object-cover border border-slate-200 rounded-full" onerror="this.src='https://placehold.co/150x150/10b981/ffffff?text=e-SMARTIQ'">
+                <img src="https://iili.io/CEswKMB.md.png" alt="Logo Sekolah" class="w-14 h-14 object-cover border border-slate-200 rounded-full" onerror="this.src='https://placehold.co/150x150/10b981/ffffff?text=e-SMARTIQ'">
                 <div>
                     <h1 class="text-lg font-black uppercase text-slate-900 tracking-tight leading-none mb-1">SEKOLAH KEBANGSAAN ULU PELAGUS</h1>
                     <h2 class="text-base font-bold text-slate-800 leading-none mb-1.5">Laporan Kedudukan Stesen Intervensi Jawi Bersepadu</h2>
@@ -5572,7 +5586,7 @@ function printStudentReport() {
             <!-- Kepala Surat Resmi (Letterhead) Laporan Kad Laporan Siswa -->
             <div class="border-b-4 border-double border-slate-800 pb-5 mb-6 flex items-center justify-between">
                 <div class="flex items-center gap-4">
-                    <img src="https://iili.io/Ky1xH3F.jpg" alt="Logo Sekolah" class="w-16 h-16 object-cover border border-slate-200 rounded-full" onerror="this.src='https://placehold.co/150x150/10b981/ffffff?text=e-SMARTIQ'">
+                    <img src="https://iili.io/CEswKMB.md.png" alt="Logo Sekolah" class="w-16 h-16 object-cover border border-slate-200 rounded-full" onerror="this.src='https://placehold.co/150x150/10b981/ffffff?text=e-SMARTIQ'">
                     <div>
                         <h1 class="text-sm font-black uppercase text-slate-900 tracking-tight leading-none mb-1">SEKOLAH KEBANGSAAN ULU PELAGUS</h1>
                         <h2 class="text-base font-bold text-slate-800 leading-none mb-1.5">KAD LAPORAN DIGITAL PRESTASI SEBUTAN JAWI</h2>
