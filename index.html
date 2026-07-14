@@ -77,6 +77,18 @@
             word-spacing: 0.35rem;
             letter-spacing: normal !important;
         }
+       /* Animasi Background Canggih */
+        @keyframes gradient-xy {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .bg-animate-canggih {
+            background: linear-gradient(-45deg, #f8fafc, #d1fae5, #f0fdfa, #e0f2fe, #f0fdf4);
+            background-size: 400% 400%;
+            animation: gradient-xy 15s ease infinite;
+        }
+        
         /* Glassmorphism elements */
         .glass-card {
             background: rgba(255, 255, 255, 0.85);
@@ -92,7 +104,7 @@
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-slate-50 to-emerald-50/30 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
+<body class="bg-animate-canggih text-slate-800 font-sans min-h-screen flex flex-col antialiased">
 
     <!-- Custom Toast Notification System -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-md pointer-events-none"></div>
