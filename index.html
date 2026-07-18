@@ -2826,7 +2826,7 @@ function renderSpecificWeakness(logId, prefix, sessionNum = null, cleanDateStr =
             statusLabel.innerText = "Kecerdasan Buatan (Gemini) sedang mengekstrak...";
 
             const settings = JSON.parse(AppStorage.getItem('e_smart_settings')) || {};
-            const activeKey = apiKey || settings.apiKey;
+            const activeKey = geminiApiKey || settings.apiKey;
 
             const model = settings.apiKey ? "gemini-2.5-flash" : "gemini-2.5-flash-preview-09-2025";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
@@ -2986,7 +2986,7 @@ function renderSpecificWeakness(logId, prefix, sessionNum = null, cleanDateStr =
             }
 
             const settings = JSON.parse(AppStorage.getItem('e_smart_settings')) || {};
-            const activeKey = apiKey || settings.apiKey;
+            const activeKey = geminiApiKey || settings.apiKey;
 
             if (activeKey) {
                 showToast("Kemaskini teks jawi menggunakan Gemini AI", "warning");
@@ -3088,7 +3088,7 @@ Pulangkan HANYA teks Jawi yang telah dirawat dengan lengkap tanpa sebarang pener
             }
 
             const settings = JSON.parse(AppStorage.getItem('e_smart_settings')) || {};
-            const activeKey = apiKey || settings.apiKey;
+            const activeKey = geminiApiKey || settings.apiKey;
 
             if (activeKey) {
                 showToast("Menjana transliterasi Rumi menggunakan Gemini AI...", "warning");
