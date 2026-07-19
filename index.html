@@ -5009,7 +5009,9 @@ function displayActiveLatihan() {
                 "alhamdulillah": "alhamdulillah",
                 "bismillah": "bismillah",
                 "assalamualaikum": "Assalamualaikum",
-                "wabarakatuh": "wabarakatuh"
+                "wabarakatuh": "wabarakatuh",
+                "mughallazah": "مُغَلَّظَة",
+                            "mughalazah": "مُغَلَّظَة"
             };
 
             // =====================================================================
@@ -5108,7 +5110,7 @@ function displayActiveLatihan() {
                         if (malayJawiPhonetics[cleanJ]) return malayJawiPhonetics[cleanJ];
                         return rumiWords[idx] || "";
                     }).join(" ");
-                } else {
+               } else {
                     let premiumText = topic.rumiText;
                     
                     premiumText = premiumText.replace(/wa\s*rahmatul\s*lah/gi, "warahmatullah");
@@ -5119,6 +5121,9 @@ function displayActiveLatihan() {
                     premiumText = premiumText.replace(/in\s+sya\s+allah/gi, "insya-Allah");
                     premiumText = premiumText.replace(/masya\s+allah/gi, "masya-Allah");
                     premiumText = premiumText.replace(/subhan\s+allah/gi, "subhanallah");
+                    
+                    // UBAT MAKHRAJ GHAIN: Paksa model membaca Arab untuk dapatkan sebutan 'Gha' tulen
+                    premiumText = premiumText.replace(/mughall?azah/gi, "مُغَلَّظَة");
                     
                     premiumText = premiumText.replace(/-/g, "");
                     
