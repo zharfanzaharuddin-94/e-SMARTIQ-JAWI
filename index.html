@@ -4753,7 +4753,7 @@ function displayActiveLatihan() {
             window.speechSynthesis.speak(utterance);
         }
 
-       // 2. KOD ENJIN SUARA MICROSOFT AZURE (Kekal Asal + Fix Ke-Sekolah)
+        // 2. KOD ENJIN SUARA MICROSOFT AZURE (Kekal Asal + Fix Jeda & Pemasa)
         async function executeCloudTTS(wordsArray, speed, isSync) {
             const AZURE_KEY = "5pOUDAGQZPeivynNfwlgQpK11qIwt7EbnoseGuL8srCtSoKW3bBrJQQJ99CGACqBBLyXJ3w3AAAYACOG992E"; 
             const REGION = "southeastasia"; 
@@ -4766,24 +4766,17 @@ function displayActiveLatihan() {
                 clearWordHighlights();
             }
 
+            // Cantuman asal
             let plainText = wordsArray.join(" ").trim();
             
-            // =====================================================================
-            // ARAHAN KHAS CIKGU: RAWATAN KATA SENDI NAMA & BUANG SENGKANG
-            // =====================================================================
-            // 1. Asingkan awalan Jawi "ke-" dan "di-" kepada ejaan Rumi berjarak dahulu.
-            // Ini memaksa Azure sebut "ke" dengan bunyi e-taling/pepet yang sempurna.
             plainText = plainText.replace(/\bke-/gi, "ke ");
             plainText = plainText.replace(/\bdi-/gi, "di ");
-            
-            // 2. Barulah kita buang baki sengkang untuk cantumkan suku kata biasa (sa-ya -> saya)
             plainText = plainText.replace(/-/g, ""); 
-            // =====================================================================
-
+            
             plainText = normalizeTextForSpeech(plainText);
             
-            // Pembolehubah teks kembali bersih (Tiada lagi kod <lang xml:lang="id-ID">)
-            let ssmlText = plainText;
+            // JEDA KOMA DAN NOKTAH: Tambah <break> SSML selamat untuk Azure
+            let ssmlText = plainText.replace(/,/g, ", <break time='500ms'/>").replace(/\./g, ". <break time='800ms'/>");
 
             const ssml = `
                 <speak version='1.0' xml:lang='ms-MY'>
@@ -4823,8 +4816,10 @@ function displayActiveLatihan() {
                     if (isSync) {
                         const wordWeights = wordsArray.map(w => {
                             let weight = w.length;
-                            if (w.includes(',')) weight += 4; 
-                            if (w.includes('.')) weight += 6; 
+                            // PENYELARASAN STOPWATCH (TIMER): Tambah berat masa pada timer jika ada koma/noktah 
+                            // supaya kelipan itu tunggu sepadan dengan tempoh rehat <break> Azure
+                            if (w.includes(',')) weight += 12; 
+                            if (w.includes('.')) weight += 18; 
                             return weight;
                         });
                         
@@ -4873,10 +4868,118 @@ function displayActiveLatihan() {
                 fallbackStandardTTS(plainText, speed, isSync);
             }
         }
-       async function executePremiumTTS(promptText, speed, isSync = false) {
+
+        async function executePremiumTTS(inputData, speed, isSync = false) {
             const settings = JSON.parse(AppStorage.getItem('e_smart_settings')) || {};
             const elevenLabsApiKey = settings.audioApi;
             const voiceId = settings.voiceId || "Zephyr";
+
+            // JAMBATAN PEMETAAN KELIPAN: Menyimpan indeks tepat butang di skrin secara mutlak
+            let promptText = "";
+            let charIndexToWordIndex = []; 
+
+            if (Array.isArray(inputData)) {
+                let skipNext = false; // Penanda untuk mengawal "Pengimbas Wasal"
+                
+                for (let idx = 0; idx < inputData.length; idx++) {
+                    // Jika perkataan ini telah diserap oleh perkataan sebelumnya, langkau.
+                    if (skipNext) {
+                        skipNext = false;
+                        continue;
+                    }
+
+                    let word = inputData[idx];
+                    let nextWord = inputData[idx + 1] || "";
+                    let modifiedWord = word;
+                    let isWasal = false; // Penanda pemotongan kelipan dua butang
+
+                    // =================================================================
+                    // PENGIMBAS WASAL (LIAISON SCANNER): Cantuman Perkataan Terpisah
+                    // =================================================================
+                    let cleanCurrent = word.toLowerCase().replace(/[.,]/g, "").trim();
+                    let cleanNext = nextWord.toLowerCase().replace(/[.,]/g, "").trim();
+                    
+                    if (cleanCurrent === "warahmatu" && cleanNext === "allah") {
+                        modifiedWord = "warahmatullah";
+                        isWasal = true;
+                        skipNext = true; 
+                        if (nextWord.includes(',')) modifiedWord += ", ... ";
+                        if (nextWord.includes('.')) modifiedWord += ". ... ";
+                    } 
+                    else if (cleanCurrent === "warahmatu" && cleanNext === "allahi") {
+                        modifiedWord = "warahmatullahi";
+                        isWasal = true;
+                        skipNext = true;
+                        if (nextWord.includes(',')) modifiedWord += ", ... ";
+                        if (nextWord.includes('.')) modifiedWord += ". ... ";
+                    }
+                    else if (cleanCurrent === "masya" && cleanNext === "allah") {
+                        modifiedWord = "masya-Allah";
+                        isWasal = true; skipNext = true;
+                        if (nextWord.includes(',')) modifiedWord += ", ... ";
+                        if (nextWord.includes('.')) modifiedWord += ". ... ";
+                    }
+                    else if (cleanCurrent === "insya" && cleanNext === "allah") {
+                        modifiedWord = "insya-Allah";
+                        isWasal = true; skipNext = true;
+                        if (nextWord.includes(',')) modifiedWord += ", ... ";
+                        if (nextWord.includes('.')) modifiedWord += ". ... ";
+                    }
+                    else if (cleanCurrent === "subhan" && cleanNext === "allah") {
+                        modifiedWord = "subhanallah";
+                        isWasal = true; skipNext = true;
+                        if (nextWord.includes(',')) modifiedWord += ", ... ";
+                        if (nextWord.includes('.')) modifiedWord += ". ... ";
+                    }
+                    else {
+                        // RAWATAN MAKHRAJ & JEDA ELEVENLABS KHAS (Kekal Asal)
+                        modifiedWord = modifiedWord.replace(/wa\s*rahmatul\s*lah/gi, "warahmatullah");
+                        modifiedWord = modifiedWord.replace(/warah\s*matul\s*lah/gi, "warahmatullah");
+                        modifiedWord = modifiedWord.replace(/wa\s+barokatuh/gi, "wabarakatuh");
+                        modifiedWord = modifiedWord.replace(/wa\s+barakatuh/gi, "wabarakatuh");
+                        modifiedWord = modifiedWord.replace(/mughall?azah/gi, "مُغَلَّظَة");
+                        
+                        modifiedWord = modifiedWord.replace(/-/g, "");
+                        
+                        modifiedWord = modifiedWord.replace(/\bmuafakat\b/gi, "muwafakat");
+                    modifiedWord = modifiedWord.replace(/\btaifah\b/gi, "ta-ifah");
+                    modifiedWord = modifiedWord.replace(/\bfajar\b/gi, "fa-jar");
+                    modifiedWord = modifiedWord.replace(/\bmudir\b/gi, "mu-dir");
+                    modifiedWord = modifiedWord.replace(/\bisytihar\b/gi, "ish-tihar");
+                    modifiedWord = modifiedWord.replace(/\bdam\b/gi, "daam");
+                    
+                    // Paksa Jeda ke dalam struktur teks ElevenLabs tanpa merosakkan indeks butang;
+                        
+                        // Paksa Jeda ke dalam struktur teks ElevenLabs tanpa merosakkan indeks butang
+                        if (modifiedWord.includes(',')) modifiedWord = modifiedWord.replace(/,/g, ", ... ");
+                        if (modifiedWord.includes('.')) modifiedWord = modifiedWord.replace(/\./g, ". ... ");
+                    }
+
+                    // Bina pemetaan huruf (character) kepada butang indeks (word) di skrin
+                    let startChar = promptText.length;
+                    promptText += modifiedWord + " ";
+                    let endChar = promptText.length;
+
+                    if (isWasal) {
+                        // Jika Wasal, bahagikan masa kelipan sama rata (Separuh Butang 1, Separuh Butang 2)
+                        let midPoint = Math.floor((startChar + endChar) / 2);
+                        for (let i = startChar; i < midPoint; i++) {
+                            charIndexToWordIndex[i] = idx;       
+                        }
+                        for (let i = midPoint; i < endChar; i++) {
+                            charIndexToWordIndex[i] = idx + 1;   
+                        }
+                    } else {
+                        // Jika normal, seluruh perkataan milik butang semasa
+                        for (let i = startChar; i < endChar; i++) {
+                            charIndexToWordIndex[i] = idx;
+                        }
+                    }
+                }
+                promptText = promptText.trim();
+            } else {
+                promptText = inputData; // Sokongan untuk mod klik butang tunggal
+            }
 
             if (!elevenLabsApiKey) {
                 showToast("ID API ElevenLabs tidak dijumpai. Sistem menggunakan suara standard peranti.", "amber");
@@ -4891,10 +4994,7 @@ function displayActiveLatihan() {
             const payload = {
                 text: promptText,
                 model_id: "eleven_multilingual_v2",
-                voice_settings: {
-                    stability: 0.95,
-                    similarity_boost: 0.85
-                }
+                voice_settings: { stability: 0.95, similarity_boost: 0.85 }
             };
 
             try {
@@ -4939,10 +5039,9 @@ function displayActiveLatihan() {
                             }
                         }
                         
-                        if (activeCharIndex !== -1) {
-                            const textUpToChar = alignmentData.characters.slice(0, activeCharIndex).join("");
-                            const wordIndex = textUpToChar.split(/\s+/).filter(w => w.length > 0).length;
-                            highlightWordInBoard(wordIndex);
+                        // Gunakan Jambatan Pemetaan untuk kelipan yang sangat tepat dan mustahil melompat
+                        if (activeCharIndex !== -1 && charIndexToWordIndex[activeCharIndex] !== undefined) {
+                            highlightWordInBoard(charIndexToWordIndex[activeCharIndex]);
                         }
                     };
                     audio.onended = () => clearWordHighlights();
@@ -4996,7 +5095,7 @@ function displayActiveLatihan() {
                 "ڽ": "nya", "ڠ": "nga"
             };
 
-           // =====================================================================
+          // =====================================================================
             // KAMUS ELEVENLABS KHAS (Guna ejaan STANDARD untuk elak eja huruf L)
             // =====================================================================
             const islamicPhrasesPremium = {
@@ -5010,12 +5109,15 @@ function displayActiveLatihan() {
                 "bismillah": "bismillah",
                 "assalamualaikum": "Assalamualaikum",
                 "wabarakatuh": "wabarakatuh",
+                "mughallazah": "مُغَلَّظَة",
+                "mughalazah": "مُغَلَّظَة",
                 // KEMAS KINI: Pembetulan Makhraj ElevenLabs
                 "muafakat": "muwafakat",
                 "taifah": "ta-ifah",
-                "fajar": "fajjar", // Memaksa bunyi J keras
-                "mudir": "muddir", // Memaksa bunyi D keras
-                "isytihar": "ish-tihar" // Memaksa bunyi Syin
+                "fajar": "fa-jar",
+                "mudir": "mu-dir",
+                "isytihar": "ish-tihar",
+                "dam": "daam"
             };
 
             // =====================================================================
@@ -5064,7 +5166,7 @@ function displayActiveLatihan() {
         }
 
         // =====================================================================
-        // FUNGSI 2: BACAAN KESELURUHAN AYAT
+        // FUNGSI 2: BACAAN KESELURUHAN AYAT (DIKEMASKINI: KALIS RALAT JEDA)
         // =====================================================================
         function speakEntireText() {
             const topicId = document.getElementById('student-topic-select').value;
@@ -5089,7 +5191,6 @@ function displayActiveLatihan() {
                 "ء": "هَمْZَۃ", "ي": "يَاء"
             };
             
-            // KEMAS KINI: Tukar "ngaa" kepada "nga"
             const malayJawiPhonetics = {
                 "چ": "chaa", "ڤ": "paa", "ݢ": "gaa", "ڬ": "gaa", "ۏ": "vaa", "ڽ": "nyaa", "ڠ": "nga"
             };
@@ -5103,58 +5204,41 @@ function displayActiveLatihan() {
                 "ڽ": "nya", "ڠ": "nga"
             };
 
-            if (isPremium) {
-                let textToRead = "";
-                if (String(topic.difficulty) === "1") { 
-                    const jawiWords = topic.jawiText.split(/\s+/);
-                    const rumiWords = topic.rumiText.split(/\s+/);
-                    textToRead = jawiWords.map((j, idx) => {
-                        const cleanJ = j.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
-                        if (arabicMakhrajMap[cleanJ]) return arabicMakhrajMap[cleanJ];
-                        if (malayJawiPhonetics[cleanJ]) return malayJawiPhonetics[cleanJ];
-                        return rumiWords[idx] || "";
-                    }).join(" ");
+            // SENARAI ASAS TULEN: Sepadan 1-ke-1 dengan butang di skrin tanpa menambah ...
+            const rumiWords = topic.rumiText.split(/\s+/).filter(w => w.length > 0);
+            let wordsToReadArray = [];
 
-                } else {
-                    let premiumText = topic.rumiText;
+            if (String(topic.difficulty) === "1") { 
+                const jawiWords = topic.jawiText.split(/\s+/).filter(w => w.length > 0);
+                wordsToReadArray = jawiWords.map((j, idx) => {
+                    const cleanJ = j.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
+                    let mappedWord = "";
                     
-                    premiumText = premiumText.replace(/wa\s*rahmatul\s*lah/gi, "warahmatullah");
-                    premiumText = premiumText.replace(/warah\s*matul\s*lah/gi, "warahmatullah");
-                    premiumText = premiumText.replace(/warahmatu?\s+allah/gi, "warahmatullah");
-                    premiumText = premiumText.replace(/wa\s+barokatuh/gi, "wabarakatuh");
-                    premiumText = premiumText.replace(/wa\s+barakatuh/gi, "wabarakatuh");
-                    premiumText = premiumText.replace(/in\s+sya\s+allah/gi, "insya-Allah");
-                    premiumText = premiumText.replace(/masya\s+allah/gi, "masya-Allah");
-                    premiumText = premiumText.replace(/subhan\s+allah/gi, "subhanallah");
+                    if (isPremium) {
+                        if (arabicMakhrajMap[cleanJ]) mappedWord = arabicMakhrajMap[cleanJ];
+                        else if (malayJawiPhonetics[cleanJ]) mappedWord = malayJawiPhonetics[cleanJ];
+                        else mappedWord = (rumiWords[idx] || "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+                    } else {
+                        mappedWord = rumiMakhrajMap[cleanJ] || rumiWords[idx] || "";
+                    }
                     
-                    premiumText = premiumText.replace(/-/g, "");
+                    // Kembalikan tanda baca asal supaya koma/titik dihantar dengan betul (Bukan ... lagi)
+                    const puncMatch = (rumiWords[idx] || "").match(/[.,]+$/);
+                    if (puncMatch && !mappedWord.endsWith(puncMatch[0])) {
+                        mappedWord += puncMatch[0];
+                    }
                     
-                    // KEMAS KINI: Pembetulan Makhraj ElevenLabs & Jeda Koma
-                    premiumText = premiumText.replace(/\bmuafakat\b/gi, "muwafakat");
-                    premiumText = premiumText.replace(/\btaifah\b/gi, "ta-ifah");
-                    premiumText = premiumText.replace(/\bfajar\b/gi, "fajjar");
-                    premiumText = premiumText.replace(/\bmudir\b/gi, "muddir");
-                    premiumText = premiumText.replace(/\bisytihar\b/gi, "ish-tihar");
-                    
-                    // Paksa ElevenLabs berhenti seketika pada tanda koma
-                    premiumText = premiumText.replace(/,/g, ", ... ");
-                    
-                    textToRead = premiumText;
-                }
-
-                executePremiumTTS(textToRead, speed, true);
+                    return mappedWord;
+                });
             } else {
-                const rumiWords = topic.rumiText.split(/\s+/);
-                if (String(topic.difficulty) === "1") {
-                    const jawiWords = topic.jawiText.split(/\s+/);
-                    const wordsToRead = jawiWords.map((j, idx) => {
-                        const cleanJ = j.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").trim();
-                        return (rumiMakhrajMap[cleanJ] || rumiWords[idx] || "") + ", ";
-                    });
-                    executeCloudTTS(wordsToRead, speed, true);
-                } else {
-                    executeCloudTTS(rumiWords, speed, true);
-                }
+                wordsToReadArray = rumiWords;
+            }
+
+            // Hantar senarai Array tulen ke enjin suara untuk pemprosesan pemetaan Jeda (Kalis Rosak)
+            if (isPremium) {
+                executePremiumTTS(wordsToReadArray, speed, true);
+            } else {
+                executeCloudTTS(wordsToReadArray, speed, true);
             }
         }
         let topicToDeleteId = null;
