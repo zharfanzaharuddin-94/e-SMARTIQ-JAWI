@@ -4996,7 +4996,7 @@ function displayActiveLatihan() {
                 "ڽ": "nya", "ڠ": "nga"
             };
 
-            // =====================================================================
+           // =====================================================================
             // KAMUS ELEVENLABS KHAS (Guna ejaan STANDARD untuk elak eja huruf L)
             // =====================================================================
             const islamicPhrasesPremium = {
@@ -5010,8 +5010,12 @@ function displayActiveLatihan() {
                 "bismillah": "bismillah",
                 "assalamualaikum": "Assalamualaikum",
                 "wabarakatuh": "wabarakatuh",
-                "mughallazah": "مُغَلَّظَة",
-                            "mughalazah": "مُغَلَّظَة"
+                // KEMAS KINI: Pembetulan Makhraj ElevenLabs
+                "muafakat": "muwafakat",
+                "taifah": "ta-ifah",
+                "fajar": "fajjar", // Memaksa bunyi J keras
+                "mudir": "muddir", // Memaksa bunyi D keras
+                "isytihar": "ish-tihar" // Memaksa bunyi Syin
             };
 
             // =====================================================================
@@ -5110,7 +5114,8 @@ function displayActiveLatihan() {
                         if (malayJawiPhonetics[cleanJ]) return malayJawiPhonetics[cleanJ];
                         return rumiWords[idx] || "";
                     }).join(" ");
-               } else {
+
+                } else {
                     let premiumText = topic.rumiText;
                     
                     premiumText = premiumText.replace(/wa\s*rahmatul\s*lah/gi, "warahmatullah");
@@ -5122,13 +5127,21 @@ function displayActiveLatihan() {
                     premiumText = premiumText.replace(/masya\s+allah/gi, "masya-Allah");
                     premiumText = premiumText.replace(/subhan\s+allah/gi, "subhanallah");
                     
-                    // UBAT MAKHRAJ GHAIN: Paksa model membaca Arab untuk dapatkan sebutan 'Gha' tulen
-                    premiumText = premiumText.replace(/mughall?azah/gi, "مُغَلَّظَة");
-                    
                     premiumText = premiumText.replace(/-/g, "");
+                    
+                    // KEMAS KINI: Pembetulan Makhraj ElevenLabs & Jeda Koma
+                    premiumText = premiumText.replace(/\bmuafakat\b/gi, "muwafakat");
+                    premiumText = premiumText.replace(/\btaifah\b/gi, "ta-ifah");
+                    premiumText = premiumText.replace(/\bfajar\b/gi, "fajjar");
+                    premiumText = premiumText.replace(/\bmudir\b/gi, "muddir");
+                    premiumText = premiumText.replace(/\bisytihar\b/gi, "ish-tihar");
+                    
+                    // Paksa ElevenLabs berhenti seketika pada tanda koma
+                    premiumText = premiumText.replace(/,/g, ", ... ");
                     
                     textToRead = premiumText;
                 }
+
                 executePremiumTTS(textToRead, speed, true);
             } else {
                 const rumiWords = topic.rumiText.split(/\s+/);
